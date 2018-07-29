@@ -9,21 +9,21 @@
 include "simple_html_dom.php";
 include "db.class.php";
 
-//$URL = 'http://kaplunenko.name/page/1/';
+//example of typical wordpress URL to pages catalog: http://linx.net.ua/page/1
 //baseURL - is URL to wordpress pages WITHOUT number at the end:
 $baseURL = 'http://linx.net.ua/page/';
 
 $currentUrl = array (
-    0 => '',
-    1 => '',
-    2 => '',
+    'baseURL' => '',
+    'pageNumber' => '',
+    'closingSlash' => '',
 );
 
 //So, in $currentUrl array we'll have 3 components to make up url to specific page: baseUrl, page number, and closing slash '/'
 //just implode it and it will become url string. If we want to paginate - just increment page number like $currentUrl[1]++
-$currentUrl[0] = $baseURL;
-$currentUrl[1] = 1;
-$currentUrl[2] = '/';
+$currentUrl['baseURL'] = $baseURL;
+$currentUrl['pageNumber'] = 1;
+$currentUrl['closingSlash'] = '/';
 
 //Create new DB Connection
 $db = new DB('localhost', 'root', 'ketchup', 'linx-content');
@@ -31,7 +31,7 @@ $db = new DB('localhost', 'root', 'ketchup', 'linx-content');
 //This function is for debug purpose. Because checking page for existing is just extra time waste. In reality (with no 404 check)
 //script will end up with error while trying to get unexisting page, but all previous pages will be saved.
 function httpResponseStatus(string $url) :int {
-    $headers=get_headers($url, 1);
+    $headers = get_headers($url, 1);
     if($headers[0] == 'HTTP/1.1 200 OK') {
         return 200;
     } elseif ($headers[0] == 'HTTP/1.1 301 Moved Permanently') {
@@ -43,11 +43,11 @@ function httpResponseStatus(string $url) :int {
     }
 }
 
-function getWebsiteIndex (array &$currentUrl) {
+function getWebsiteIndex(array &$currentUrl) {
+    global $db; //database connection, need to be global
     $url = implode('', $currentUrl); //get URL in string format from array:$currentUrl
     $html = new simple_html_dom(); //new simple_html_dom() object
     $nextUrl = null; //default value for nextUrl. we check this value at the end of function, if it !=null, function call itself recursively
-    global $db; //database connection, need to be global
 
     if(httpResponseStatus(implode ('', $currentUrl))!=404) {
         $html->load_file($url);
@@ -56,17 +56,17 @@ function getWebsiteIndex (array &$currentUrl) {
         if(!empty($headerLinks)) {
             echo 'Page ['.$url.']:'.PHP_EOL;
             foreach ($headerLinks as $element) {
-                $article_url = $db->escape($element->href);
-                $article_header = $db->escape($element->innertext);
+                $articleUrl = $db->escape($element->href);
+                $articleHeader = $db->escape($element->innertext);
                 //Put URL and header to DB:
-                $sql = "INSERT IGNORE INTO articles (url, header) VALUES ('{$article_url}', '{$article_header}')";
+                $sql = "INSERT IGNORE INTO articles (url, header) VALUES ('{$articleUrl}', '{$articleHeader}')";
                 $db->query($sql);
 
-                echo 'Index saved to DB -> ['.$article_header.'|'.$article_url.']'.PHP_EOL;
+                echo 'Index saved to DB -> ['.$articleHeader.'|'.$articleUrl.']'.PHP_EOL;
             }
 //exit(); //let's parse just first page
-            //let's get url to next page - just increment $currentUrl[1] by 1:
-            $currentUrl[1]++;
+            //let's get url to next page - just increment $currentUrl['pageNumber'] by 1:
+            $currentUrl['pageNumber']++;
             $nextUrl = $currentUrl;
         } else {
             $nextUrl = null;
@@ -78,16 +78,16 @@ function getWebsiteIndex (array &$currentUrl) {
 
     //Only if nextUrl is !=null we call function again. If nextUrl == null, we reached at the end of website.
     if ($nextUrl) {
-        getWebsiteIndex ($nextUrl);
+        getWebsiteIndex($nextUrl);
     } else {
-        echo 'Indexing process is DONE. '.($currentUrl[1]-1).' pages processed.'.PHP_EOL.'Next task - grab articles bodies.'.PHP_EOL;
+        echo 'Indexing process is DONE. '.($currentUrl['pageNumber']-1).' pages processed.'.PHP_EOL.'Next task - grab articles bodies.'.PHP_EOL;
     }
 }
 
 function grabArticles() {
     global $db;
     $html = new simple_html_dom(); //new simple_html_dom() object
-    $numOfRecords = (integer) ($db->query("SELECT COUNT(*) AS numofrows FROM articles where dt_parsed is null;"))[0]['numofrows']; //Get number of rows in MySQL Table articles
+    $numOfRecords = (integer) ($db->query("SELECT COUNT(*) AS numofrows FROM articles where dt_parsed is null;"))[0]['numofrows']; //Get number of rows in MySQL Table 'articles'
 
     while($recordWithoutBody = $db->query("select * from articles where dt_parsed is null order by id ASC limit 1;")){
         $url = $recordWithoutBody[0]['url'];
@@ -100,10 +100,8 @@ function grabArticles() {
         $content = $db->escape($content);
         $sql = "UPDATE articles SET content = '{$content}', dt_parsed = NOW() WHERE id = '{$id}' LIMIT 1;";
         $db->query($sql);
-        //var_dump($content);
-        //break;
     }
 }
 
-//getWebsiteIndex($currentUrl);
+getWebsiteIndex($currentUrl);
 grabArticles();
