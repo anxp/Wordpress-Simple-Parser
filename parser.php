@@ -9,6 +9,8 @@
 include "simple_html_dom.php";
 include "db.class.php";
 
+define('DS', DIRECTORY_SEPARATOR);
+
 //Specify content container here, usually for wordpress all article content placed into <div class=entry> or <div class=Event>, or smth else...
 define('contentContainer', 'div.entry');
 
@@ -28,7 +30,7 @@ $currentUrl = array (
 );
 
 //Create new DB Connection
-$db = new DB('localhost', 'root', 'ketchup', 'linx-content');
+$db = new DB('localhost', 'root', '', 'linx-content');
 
 //This function is for debug purpose. Because checking page for existing is just extra time waste. In reality (with no 404 check)
 //script will end up with error while trying to get unexisting page, but all previous pages will be saved.
@@ -66,7 +68,7 @@ function getWebsiteIndex(array &$currentUrl) {
 
                 echo 'Index saved to DB -> ['.$articleHeader.'|'.$articleUrl.']'.PHP_EOL;
             }
-            exit(); //<- uncomment this to parse just first page
+            //exit(); //<- uncomment this to parse just first page
             //let's get url to next page - just increment $currentUrl['pageNumber'] by 1:
             $currentUrl['pageNumber']++;
             $nextUrl = $currentUrl;
@@ -103,7 +105,7 @@ function grabArticles() {
         $sql = "UPDATE articles SET content = '{$content}', dt_parsed = NOW() WHERE id = '{$id}' LIMIT 1;";
         $db->query($sql);
 
-        grabImages($html);
+        downloadIMG(grabImages($html));
     }
 
     $html->clear(); //To avoid memory leak
@@ -149,6 +151,27 @@ function grabImages(object $html) :array {
     return($preparedToDownload);
 }
 
+function downloadIMG(array $linksArray): void {
+
+    foreach ($linksArray as $uri) {
+        $uriToArray = explode('/', $uri);
+
+        $fileName = array_pop($uriToArray); //get last element of array, this will be file name
+        array_shift($uriToArray); //remove 'http:' as first element of array
+        array_shift($uriToArray); //then remove '' (empty element) from array
+        $folderStructure = $uriToArray;  //now, we have array which represents folder structure begins with smth like 'site.com' (this will be root folder)
+
+        //let's recreate folder structure with mkdir()...
+        $fileSystemPath = '.'.DS.implode(DS, $folderStructure).DS;
+        if (!is_dir($fileSystemPath)) {
+            // dir doesn't exist, make it
+            mkdir($fileSystemPath, 0777, true);
+        }
+
+        file_put_contents($fileSystemPath.$fileName, file_get_contents($uri));
+    }
+}
+
 function completeUri($prefix, $abs_OR_relative_URI) {
     //this function completes URI to full form if URI is relative.
     //Example: '/wp-uploads/images/portrait.jpg' will be converted to 'http://website.com/wp-uploads/images/portrait.jpg'
@@ -160,5 +183,5 @@ function completeUri($prefix, $abs_OR_relative_URI) {
     return($fullURI);
 }
 
-//getWebsiteIndex($currentUrl);
+getWebsiteIndex($currentUrl);
 grabArticles();
