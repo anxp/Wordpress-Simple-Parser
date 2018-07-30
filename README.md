@@ -3,7 +3,7 @@
 Simple website parser suitable for Wordpress blogs (but maybe for other websites with some edits).
 Parser uses "Simple HTML DOM" library.
 
-Parser need MySQL database, query for creating correct DB see at the botoom of this readme.
+Parser need MySQL database, query for creating correct DB see in file create-table.sql in this project.
 
 How it works?
 
@@ -15,24 +15,3 @@ links to full article. Save them to DB.
 copy full articles and saves to DB.
 5. When found an image, script downloads it, and also looks maybe there is bigger images linked to this image.
 If bigger image exists, it downloads too.
-
-####SQL query for creation correct table to work with this script:
-
-CREATE TABLE `articles` (
-
-  `id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
-  
-  `url` varchar(255) NOT NULL,
-  
-  `header` varchar(255) NOT NULL,
-  
-  `content` text,
-  
-  `dt_parsed` timestamp NULL DEFAULT NULL,
-  
-  PRIMARY KEY (`id`),
-  
-  UNIQUE KEY `articles_UN` (`url`)
-
-) 
-ENGINE=InnoDB DEFAULT CHARSET=utf8;
